@@ -1,0 +1,30 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [g++, clang++]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_CXX_COMPILER=${{ matrix.compiler }}
+      - name: Build
+        run: cmake --build build -j
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Replay sample
+        run: ./build/replay data/sample.csv
+
+  tsan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build with ThreadSanitizer
+        run: |
+          cmake -S . -B build-tsan -DCMAKE_CXX_COMPILER=clang++ -DOB_SANITIZE=thread
+          cmake --build build-tsan -j
+      - name: Run threaded tests under TSan
+        run: ./build-tsan/tests --gtest_filter='SpscQueue.*:Pipeline.*'

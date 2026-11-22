@@ -1,0 +1,20 @@
+1 thread parse+match              10.05M/s
+v2 + SPSC (guide's queue)          5.90M/s   full-speed latency p50   2.11 ms, p99  18.39 ms (backlog)
+                                            paced 1M/s latency p50   580 ns, p99 541043 ns, p99.9 3397268 ns
+v2 + SPSC (cached indices)         8.58M/s   full-speed latency p50  10.52 ms, p99  17.25 ms (backlog)
+                                            paced 1M/s latency p50   627 ns, p99 71667 ns, p99.9 540847 ns
+1 thread parse+match               9.75M/s
+v2 + SPSC (guide's queue)          7.29M/s   full-speed latency p50  16.41 ms, p99  21.93 ms (backlog)
+                                            paced 1M/s latency p50   657 ns, p99 269897 ns, p99.9 1221875 ns
+v2 + SPSC (cached indices)        14.33M/s   full-speed latency p50  13.89 ms, p99  18.19 ms (backlog)
+                                            paced 1M/s latency p50   633 ns, p99 497582 ns, p99.9 5710186 ns
+1 thread parse+match               9.62M/s
+v2 + SPSC (guide's queue)          6.64M/s   full-speed latency p50  17.76 ms, p99  25.37 ms (backlog)
+                                            paced 1M/s latency p50   606 ns, p99 370765 ns, p99.9 6602610 ns
+v2 + SPSC (cached indices)        12.80M/s   full-speed latency p50  14.80 ms, p99  22.78 ms (backlog)
+                                            paced 1M/s latency p50   699 ns, p99  4537 ns, p99.9 275364 ns
+1 thread parse+match               9.27M/s
+v2 + SPSC (guide's queue)          5.70M/s   full-speed latency p50  15.56 ms, p99  19.07 ms (backlog)
+                                            paced 1M/s latency p50   617 ns, p99 30982 ns, p99.9 444715 ns
+v2 + SPSC (cached indices)         8.74M/s   full-speed latency p50  17.78 ms, p99  33.45 ms (backlog)
+                                            paced 1M/s latency p50   608 ns, p99 67938 ns, p99.9 784342 ns

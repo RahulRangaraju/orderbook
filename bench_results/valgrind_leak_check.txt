@@ -1,0 +1,16 @@
+== replay data/sample.csv
+==2180==     in use at exit: 0 bytes in 0 blocks
+==2180== All heap blocks were freed -- no leaks are possible
+==2180== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+== replay /tmp/gen_20k.csv --book v2 --quiet
+==2183==     in use at exit: 0 bytes in 0 blocks
+==2183== All heap blocks were freed -- no leaks are possible
+==2183== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+== replay /tmp/gen_20k.csv --book v2 --threads --queue cached --quiet
+==2186==     in use at exit: 0 bytes in 0 blocks
+==2186== All heap blocks were freed -- no leaks are possible
+==2186== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+== replay data/mbo_format_example.csv --format databento --book v1
+==2191==     in use at exit: 0 bytes in 0 blocks
+==2191== All heap blocks were freed -- no leaks are possible
+==2191== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)

@@ -1,0 +1,14 @@
+commands: 5000000   runs: 5 (median reported, after 1 warm-up)   api: reused buffer
+cpu: Intel(R) Xeon(R) Processor @ 2.10GHz (2 hw threads)
+compiler: 13.3.0   flags: Release -O3 -DNDEBUG
+timer overhead (empty steady_clock pair): p50 26 ns, p99 37 ns
+
+v1 (std::map)                4.34M/s   p50     196 ns   p99    2865 ns   p99.9     9166 ns   (min 4.02M/s, max 4.67M/s, trades 3097488, resting 214465)
+v2 (flat array)             17.75M/s   p50      66 ns   p99     568 ns   p99.9     1060 ns   (min 16.92M/s, max 19.00M/s, trades 3097488, resting 214465)
+
+Pipeline (CSV text in memory -> parse -> match, v2 book, 5000000 commands)
+1 thread parse+match               8.19M/s
+v2 + SPSC (guide's queue)          6.48M/s   full-speed latency p50  20.27 ms, p99  28.53 ms (backlog)
+                                            paced 1M/s latency p50   704 ns, p99 47694 ns, p99.9 735943 ns
+v2 + SPSC (cached indices)        12.60M/s   full-speed latency p50  14.62 ms, p99  16.73 ms (backlog)
+                                            paced 1M/s latency p50   622 ns, p99 148447 ns, p99.9 791727 ns

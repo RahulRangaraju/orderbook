@@ -1,0 +1,22 @@
+# type,id,side,price,qty
+# The Step 3 worked example, then a few cancels and modifies.
+A,1,S,101,100
+A,2,S,101,50
+A,3,S,102,70
+A,4,B,102,180
+A,5,B,100,10
+# id 3 has 40 left @ 102. Add more depth on both sides.
+A,6,B,99,25
+A,7,S,103,60
+A,8,B,100,15
+# Cancel id 6; cancel an id that already filled (1) -> ignored
+C,6,,,
+C,1,,,
+# Shrink id 5 to 4 (keeps its place ahead of id 8)
+M,5,B,100,4
+# A sell that crosses: fills id 5 (4) then id 8 (15), rests 1 @ 100
+A,9,S,100,20
+# Reprice id 7 down through nothing (still above the bid) -> back of 102 queue
+M,7,S,102,60
+# A buy that sweeps id 9 @ 100, then id 3 and id 7 @ 102
+A,10,B,102,90

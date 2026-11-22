@@ -1,0 +1,2 @@
+v2 (flat array)              8.02M/s   p50     120 ns   p99    1189 ns   p99.9     2265 ns   (min 7.36M/s, max 8.65M/s, trades 3097488, resting 214465)
+v2 (flat array)              8.79M/s   p50     113 ns   p99    1166 ns   p99.9     2175 ns   (min 8.35M/s, max 9.30M/s, trades 3097488, resting 214465)

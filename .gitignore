@@ -1,0 +1,33 @@
+# Build output
+build/
+build-*/
+cmake-build-*/
+out/
+
+# Compiled objects
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.exe
+
+# Profiling output
+perf.data
+perf.data.old
+callgrind.out.*
+*.svg.tmp
+
+# Big data files stay out of git (small samples are allowed)
+data/*.csv
+!data/sample.csv
+!data/mbo_format_example.csv
+data/*.dbn
+data/*.zst
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+compile_commands.json
+.cache/

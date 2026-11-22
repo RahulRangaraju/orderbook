@@ -1,0 +1,7 @@
+commands: 5000000   runs: 5 (median reported, after 1 warm-up)   api: reused buffer
+cpu: Intel(R) Xeon(R) Processor @ 2.10GHz (2 hw threads)
+compiler: 13.3.0   flags: Release -O3 -DNDEBUG
+timer overhead (empty steady_clock pair): p50 26 ns, p99 27 ns
+
+v1 (std::map)                4.75M/s   p50     181 ns   p99    2407 ns   p99.9     7929 ns   (min 4.40M/s, max 5.21M/s, trades 3097488, resting 214465)
+v2 (flat array)             18.99M/s   p50      73 ns   p99     547 ns   p99.9     1014 ns   (min 17.44M/s, max 21.73M/s, trades 3097488, resting 214465)
