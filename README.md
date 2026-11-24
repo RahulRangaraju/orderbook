@@ -1,8 +1,8 @@
 # orderbook
 
-A C++20 limit order book that matches orders by price-time priority. The flat-array v2 book handles **~19M orders/sec on one core with a p99 of ~550 ns**: 4× the throughput and ~4.4× lower p99 than the `std::map` v1 it replaced. It's checked against v1 by a differential test over 1M+ commands.
+A C++20 limit order book that matches orders by price-time priority. The flat-array v2 book handles **~53M orders/sec on one core with a p99 under 180 ns** (Intel i9-12900KF): about 4.5× the throughput and 6× lower p99 than the `std::map` v1 it replaced. It's checked against v1 by a differential test over 1M+ commands.
 
-![CI](https://github.com/<your-github-username>/orderbook/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/RahulRangaraju/orderbook/actions/workflows/ci.yml/badge.svg)
 
 ## Build and run
 
@@ -69,20 +69,29 @@ L = price levels on that side, q = orders at the level.
 
 ## Benchmarks
 
-Machine: Intel Xeon @ 2.10 GHz, 2 vCPUs (KVM cloud VM, no SMT) · GCC 13.3.0 · `Release -O3 -DNDEBUG` · Linux.
+Machine: Intel Core i9-12900KF (8 performance + 8 efficiency cores, 24 hardware threads) · GCC 15.2.0 · `Release -O3 -DNDEBUG` · Ubuntu on WSL2 (Windows 11).
 
-Method: 5M synthetic commands (seed 42: 70% add, 25% cancel, 5% modify; 3.1M trades; about 214k orders resting at the end) are generated into a `std::vector<Command>` before timing. Each figure comes from one warm-up pass, then 5 timed runs, and the median is reported. Latency comes from timing every command on its own with `steady_clock` and taking percentiles with `std::nth_element`. Each latency includes about 26 ns of timer overhead, measured and printed by `bench`. Raw output is in [`bench_results/`](bench_results/).
+Method: 5M synthetic commands (seed 42: 70% add, 25% cancel, 5% modify; 3.1M trades; about 214k orders resting at the end) are generated into a `std::vector<Command>` before timing. Each figure comes from one warm-up pass, then 5 timed runs, and the median is reported. Latency comes from timing every command on its own with `steady_clock` and taking percentiles with `std::nth_element`. Each latency includes about 14 ns of timer overhead, measured and printed by `bench`. Raw output from two separate invocations: [`bench_results/my_machine.txt`](bench_results/my_machine.txt) and [`bench_results/my_machine_run2.txt`](bench_results/my_machine_run2.txt).
 
 | Version | Orders/sec | p50 latency | p99 latency | p99.9 latency |
 |---|---|---|---|---|
+| v1 (`std::map`) | 11.5–11.8M | 75–76 ns | 1.12–1.13 µs | 2.95–2.98 µs |
+| **v2 (flat array, dense id index)** | **53.4–54.6M** | **33 ns** | **158–178 ns** | **305–342 ns** |
+| v2 + SPSC threads, end to end (parse + match) | 25.7M | 144–153 ns* | 3.4–7.7 µs* | 56–89 µs* |
+
+Ranges are the spread across the two invocations. v2 delivers about 4.5× v1's throughput with 6–7× lower p99.
+
+\* The pipeline row uses the cached-index queue (see Threading) and its latency was measured paced at 1M commands/sec, so the queue stays nearly empty. At full speed the queue fills and latency becomes backlog time (4–6 ms p50), which measures queueing rather than the queue hop.
+
+The pipeline row is not comparable to the rows above it: it includes CSV parsing, and the rows above don't. Its direct comparison is one thread doing parse + match, which measured 22.8–22.9M/sec on the same machine. The 12900KF mixes performance and efficiency cores, and WSL2 doesn't control which kind a thread lands on, so run the benchmark more than once. **Numbers depend on the machine; re-run `./build/bench 5000000` on yours.**
+
+**Development history.** The optimization work described under Profiling was done and measured on a 2-vCPU cloud VM (Intel Xeon @ 2.10 GHz, GCC 13.3.0). Those numbers are kept as recorded there, so compare them with each other rather than with the table above:
+
+| Version (cloud VM) | Orders/sec | p50 latency | p99 latency | p99.9 latency |
+|---|---|---|---|---|
 | v1 (`std::map`) | 4.75M | 181 ns | 2.41 µs | 7.93 µs |
 | v2 (flat array, `unordered_map` id index) | 8.0–8.8M | 113–121 ns | 1.11–1.19 µs | 2.2–2.3 µs |
-| **v2 (flat array, dense id index)** | **19.0M** | **73 ns** | **547 ns** | **1.01 µs** |
-| v2 + SPSC threads, end to end (parse + match) | 6.6–14.3M | 620–700 ns* | 20–280 µs* | — |
-
-\* The pipeline was measured paced at 1M commands/sec, so the queue stays nearly empty. At full speed the queue fills and latency becomes backlog time (14–33 ms), which measures queueing rather than the queue hop; see Threading. The p99 varied 14× between runs, most likely from VM scheduling noise.
-
-The pipeline row is not comparable to the rows above it: it includes CSV parsing, and the rows above don't. Its direct comparison is one thread doing parse + match, which measured 8.2–10.1M/sec on the same machine. Ranges are spreads across repeated invocations, since 2-vCPU cloud VMs are noisy. **Numbers depend on the machine; re-run `./build/bench 5000000` on yours.**
+| v2 (flat array, dense id index) | 19.0M | 73 ns | 547 ns | 1.01 µs |
 
 ## Threading
 
@@ -95,9 +104,9 @@ The pipeline row is not comparable to the rows above it: it includes CSV parsing
 - **Busy-wait:** an empty or full queue spins with `pause`. That gives the lowest latency, but it keeps **two cores at 100%** for the whole run. A production system would add a back-off or sleep for quiet periods.
 - **Shutdown:** the producer sets an atomic `done` flag (release) after its last push. The consumer drains the queue after seeing it (acquire), so nothing is lost.
 
-**What benchmarking found.** With the guide's queue, two threads were *slower* than one (5.1–7.3M/sec vs 8.2–10.1M/sec). Every `push` reads `head_` and every `pop` reads `tail_`, and the other core is constantly writing those cache lines, so nearly every operation pays a cross-core miss. `SpscQueueCached` gives each side a private copy of the other's index and re-reads the shared atomic only when the queue *looks* full or empty. It beat the guide's queue in all 7 paired runs (1.2–2.0×). On this 2-vCPU VM, two threads ended up between 0.7× and 1.5× of one thread depending on noise. A dedicated machine should do better. Both queues are kept, tested and benchmarked side by side.
+**What benchmarking found.** With the guide's queue, two threads were *slower* than one: 5.1–7.3M/sec vs 8.2–10.1M/sec on the cloud VM, and 17.5–20.0M/sec vs 22.8–22.9M/sec on the i9. Every `push` reads `head_` and every `pop` reads `tail_`, and the other core is constantly writing those cache lines, so nearly every operation pays a cross-core miss. `SpscQueueCached` gives each side a private copy of the other's index and re-reads the shared atomic only when the queue *looks* full or empty. It beat the guide's queue in all 7 paired runs on the VM (1.2–2.0×) and in both runs on the i9 (about 1.3×). Even so, two threads reach only about 1.1× of one thread on the i9 (25.7M vs 22.9M/sec): parsing and matching are each so cheap that handing commands between cores eats most of the gain. Both queues are kept, tested and benchmarked side by side.
 
-**The trade-off:** pipelining can raise throughput (at best to 1 / max(parse, match) instead of 1 / (parse + match)), but each command pays a queue hop, about 0.6 µs median on this VM. When the producer outruns the consumer, the queue fills and latency turns into time spent waiting in the backlog.
+**The trade-off:** pipelining can raise throughput (at best to 1 / max(parse, match) instead of 1 / (parse + match)), but each command pays a queue hop, about 0.15 µs median on the i9 (about 0.6 µs on the cloud VM). When the producer outruns the consumer, the queue fills and latency turns into time spent waiting in the backlog.
 
 ## Profiling (Step 9)
 
@@ -107,9 +116,9 @@ The pipeline row is not comparable to the rows above it: it includes CSV parsing
 
 **What I changed:** I added `IdIndex`, a dense `vector<uint32_t>` indexed by id, with an `unordered_map` fallback for ids ≥ 2²⁵ such as 64-bit exchange order ids. Behaviour is unchanged: the differential tests, including one with exchange-style 64-bit ids that exercises both paths, still pass.
 
-**Result:** v2 went from **8.0–8.8M to 19.0M orders/sec** and **p99 from ~1.15 µs to 547 ns**. Whole-program instructions fell 26% and L1 data misses fell 31%. `malloc` and the hashtable functions dropped out of the profile entirely.
+**Result (cloud VM):** v2 went from **8.0–8.8M to 19.0M orders/sec** and **p99 from ~1.15 µs to 547 ns**. Whole-program instructions fell 26% and L1 data misses fell 31%. `malloc` and the hashtable functions dropped out of the profile entirely.
 
-A second, smaller finding: the API that returns a fresh `std::vector<Trade>` per order runs at 11.9M/sec, against 19.0M/sec for appending into one reused buffer (`./build/bench 5000000 --book v2 --api vector`). The hot path uses the reused buffer, and the vector-returning API is kept for tests.
+A second, smaller finding: the API that returns a fresh `std::vector<Trade>` per order ran at 11.9M/sec on the cloud VM, against 19.0M/sec for appending into one reused buffer (`./build/bench 5000000 --book v2 --api vector`). The hot path uses the reused buffer, and the vector-returning API is kept for tests.
 
 Leak check: `valgrind --leak-check=full` on `replay` (v1, v2, threaded and Databento modes) reports 0 bytes in use at exit and 0 errors ([`bench_results/valgrind_leak_check.txt`](bench_results/valgrind_leak_check.txt)).
 
@@ -154,7 +163,7 @@ CI (GitHub Actions) builds and tests with GCC and Clang, replays the sample, and
 - Limit orders only: no market, IOC or iceberg orders. No self-trade prevention.
 - v2 needs a price window up front, and prices outside it are rejected.
 - The two-thread pipeline busy-spins two cores.
-- Benchmarks come from a 2-vCPU cloud VM, so the multi-thread numbers in particular are noisy.
+- Headline numbers come from a desktop under WSL2, where a thread can land on a performance or an efficiency core; the optimization history comes from a 2-vCPU cloud VM. Multi-thread numbers are the noisiest in both.
 
 ## Layout
 
@@ -166,5 +175,4 @@ apps/         replay.cpp  gen.cpp  bench.cpp
 tests/        test_order_book.cpp  test_randomized.cpp  test_parser.cpp  test_spsc.cpp
 data/         sample.csv  mbo_format_example.csv   (big files stay out of git)
 bench_results/ raw benchmark, profile and leak-check output
-docs/         interview-prep.md
 ```
